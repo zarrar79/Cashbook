@@ -12,6 +12,34 @@ export const Dashboard = () => {
   const socket = io('http://localhost:3001')
 
   useEffect(() => {
+    // Listen for the 'paymentMade' event and update the state when it occurs
+    socket.on('paymentMade', (data) =>{
+      const newTransaction = {
+        id: Date.now(), // Generate a new ID for the transaction
+        type: 'sent', // Or 'received', depending on how you structure your data
+        amount: data.amount,
+        description: data.description,
+        sender: data.senderName,
+        receiver: data.from, // Depending on the structure of the data sent
+        createdAt: data.time,
+      };
+
+      // If the transaction is sent by the current user, update sentTransactions
+      if (data.userId === token) {
+        setSentTransactions((prevSent) => [newTransaction, ...prevSent]);
+      } else {
+        // Otherwise, update receivedTransactions
+        setReceivedTransactions((prevReceived) => [newTransaction, ...prevReceived]);
+      }
+    });
+
+    // Cleanup socket listener on component unmount
+    return () => {
+      socket.off('paymentMade'); // Remove the listener to prevent memory leaks
+    };
+  }, [token]); // Re-run effect when token changes
+
+  useEffect(() => {
     fetch('http://localhost:3001/auth/profile/transactions', {
       method: 'GET',
       headers: {
@@ -111,6 +139,8 @@ export const Dashboard = () => {
               </tr>
             </thead>
             <tbody>
+              {console.log(transactions.length,'---->transaction')
+              }
               {transactions.length > 0 ? (
                 transactions.map((tx) => (
                   <tr key={tx.id} className="border-t">
