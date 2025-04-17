@@ -40,7 +40,7 @@ const SidebarLayout = () => {
 
         {/* Balance Display */}
         <div className="text-gray-800 font-medium mb-4">
-          Balance: <span className="text-green-600">₹{balance ? balance.toFixed(2) : '0.00'}</span>
+          Balance: <span className="text-green-600">PKR {balance ? balance.toFixed(2) : '0.00'}</span>
         </div>
 
         {/* Navigation Tabs */}

@@ -116,7 +116,7 @@ export const Dashboard = () => {
                   <tr key={tx.id} className="border-t">
                     <td className="px-4 py-2">{tx.type}</td>
                     <td className="px-4 py-2">{tx.type === 'Sent' ? tx.receiver : tx.sender}</td>
-                    <td className="px-4 py-2">₹{tx.amount}</td>
+                    <td className="px-4 py-2">PKR{tx.amount}</td>
                     <td className="px-4 py-2">{tx.description}</td>
                     <td className="px-4 py-2">{new Date(tx.createdAt).toLocaleString()}</td>
                   </tr>

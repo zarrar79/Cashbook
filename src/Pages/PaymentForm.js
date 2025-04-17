@@ -25,12 +25,12 @@ export const PaymentForm = () => {
       socketRef.current.on('paymentMade', (data) => {
         console.log(data);
         if(data.senderId !== userId){
-        console.log(`Payment received: ₹${data.amount} from ${data.senderName}`);
+        console.log(`Payment received: PKR${data.amount} from ${data.senderName}`);
         updateBalance(data.amount + balance);
         }
         else
         {
-        console.log(`Payment sent: ₹${data.amount} to ${data.receiverName}`);
+        console.log(`Payment sent: PKR${data.amount} to ${data.receiverName}`);
         }
       });
     
@@ -177,7 +177,7 @@ export const PaymentForm = () => {
                             required
                         />
                         <div className="text-xs text-gray-500 mt-1">
-                            Available balance: ₹{balance.toFixed(2)}
+                            Available balance: PKR{balance.toFixed(2)}
                         </div>
                     </div>
 
