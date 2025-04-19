@@ -86,7 +86,8 @@ export const PaymentForm = () => {
           sender: Number(user.id),
           amount: amountNum,
           description: description.trim(),
-          flag: currentFlag
+          flag: currentFlag,
+          transactionId: !transactionRecipient.tId ? null : transactionRecipient.tId
         }),
       });
 

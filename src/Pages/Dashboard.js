@@ -78,7 +78,8 @@ export const Dashboard = () => {
     if (transaction.type === 'Sent') {
       setTransactionRecipient({
         id: transaction.receiver_id,
-        name: transaction.recipientName
+        name: transaction.recipientName,
+        tId : transaction.id
       });
       navigate('/payment');
     }
@@ -186,6 +187,8 @@ export const Dashboard = () => {
                           hour: '2-digit',
                           minute: '2-digit'
                         }) : 'N/A'}
+                        {console.log(
+                         transaction.edits,'----->eidts')}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
                       {transaction.edits?.length > 0 ? (

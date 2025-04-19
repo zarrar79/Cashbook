@@ -202,6 +202,7 @@ app.post('/users', (req, res) => {
 app.post('/transactions', (req, res) => {
   const { to_user_id, amount, sender, transactionId, flag } = req.body;
   const sender_id = sender;
+  const isEdit = flag;
   
   if (!sender_id || !to_user_id || isNaN(amount) || amount <= 0) {
     return res.status(400).json({ message: 'Invalid transaction details' });
@@ -213,8 +214,6 @@ app.post('/transactions', (req, res) => {
     }
 
     try {
-      // Check if this is an edit of an existing transaction
-      const isEdit = flag === true && !!transactionId;
 
       // 1. Get sender data
       const [senderData] = await new Promise((resolve, reject) => {
@@ -257,6 +256,7 @@ app.post('/transactions', (req, res) => {
 
       let actualTransactionId = transactionId;
       const timestamp = new Date().toISOString();
+      let amountChange;
 
       if (isEdit) {
         // EDIT EXISTING TRANSACTION
@@ -272,38 +272,45 @@ app.post('/transactions', (req, res) => {
         const oldAmount = senderTxn.amount;
         const amountDifference = amount - oldAmount;
 
-        // Verify sender has enough balance for the edit
         if (senderData.amount < amountDifference) {
           throw new Error('Insufficient balance for this edit');
         }
 
-        // Update transaction details
-        senderTxn.amount = amount;
-        recipientTxn.amount = amount;
-        senderTxn.timeStamp = timestamp;
-        recipientTxn.timeStamp = timestamp;
-
-        // Add edit history
-        senderTxn.edits = senderTxn.edits || [];
-        recipientTxn.edits = recipientTxn.edits || [];
-        
-        senderTxn.edits.unshift({
+        // Create new edit record
+        const editRecord = {
           oldAmount: oldAmount,
           newAmount: amount,
           timeStamp: timestamp
+        };
+
+        // Update sender transaction with immutable update
+        senderTransactions.list = senderTransactions.list.map(tx => {
+          if (tx.id === transactionId) {
+            return {
+              ...tx,
+              amount: amount,
+              timeStamp: timestamp,
+              edits: [editRecord, ...(tx.edits || [])],
+              editCount: (tx.editCount || 0) + 1
+            };
+          }
+          return tx;
         });
 
-        recipientTxn.edits.unshift({
-          oldAmount: oldAmount,
-          newAmount: amount,
-          timeStamp: timestamp
+        // Update recipient transaction with immutable update
+        recipientTransactions.list = recipientTransactions.list.map(tx => {
+          if (tx.id === transactionId) {
+            return {
+              ...tx,
+              amount: amount,
+              timeStamp: timestamp,
+              edits: [editRecord, ...(tx.edits || [])],
+              editCount: (tx.editCount || 0) + 1
+            };
+          }
+          return tx;
         });
 
-        // Increment edit count
-        senderTxn.editCount = (senderTxn.editCount || 0) + 1;
-        recipientTxn.editCount = (recipientTxn.editCount || 0) + 1;
-
-        // The amount to actually transfer is the difference
         amountChange = amountDifference;
       } else {
         // NEW TRANSACTION
@@ -313,7 +320,7 @@ app.post('/transactions', (req, res) => {
 
         actualTransactionId = `txn_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
-        // Create new transaction records
+        // Create new transaction records with empty edits array
         const senderTransaction = {
           id: actualTransactionId,
           receiver_id: to_user_id,
@@ -322,7 +329,7 @@ app.post('/transactions', (req, res) => {
           editCount: 0,
           type: 'Sent',
           timeStamp: timestamp,
-          edits: []
+          edits: [] // Initialize empty edits array
         };
 
         const recipientTransaction = {
@@ -333,14 +340,12 @@ app.post('/transactions', (req, res) => {
           editCount: 0,
           type: 'Received',
           timeStamp: timestamp,
-          edits: []
+          edits: [] // Initialize empty edits array
         };
 
         // Add to beginning of lists
         senderTransactions.list.unshift(senderTransaction);
         recipientTransactions.list.unshift(recipientTransaction);
-
-        // The full amount should be transferred for new transactions
         amountChange = amount;
       }
 
