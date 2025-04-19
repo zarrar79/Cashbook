@@ -196,9 +196,12 @@ export const Dashboard = () => {
                           {transaction.edits.map((edit, index) => (
                             <div key={index} className="flex items-center text-xs">
                               <span className="font-medium mr-1">Edit {index + 1}:</span>
-                              <span className="text-gray-600 mr-2">₹{Number(edit.amount).toFixed(2)}</span>
+                              <span className="text-gray-600 mr-2">₹{Number(edit.newAmount).toFixed(2)}</span>
                               <span className="text-gray-400">
                                 {edit.timeStamp ? new Date(edit.timeStamp).toLocaleTimeString() : 'N/A'}
+                                {console.log(edit,'----->amount')
+                          }
+                                
                               </span>
                             </div>
                           ))}

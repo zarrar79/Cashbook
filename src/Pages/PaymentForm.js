@@ -140,7 +140,7 @@ export const PaymentForm = () => {
             <select
               id="recipient"
               value={toUser }
-              onChange={(e) => setToUser(transactionRecipient.name)}
+              onChange={(e) => setToUser(!transactionRecipient.name ? e.target.value : transactionRecipient.name)}
               className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
               required
             >
