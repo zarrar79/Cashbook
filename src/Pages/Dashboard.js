@@ -1,159 +1,216 @@
 import React, { useEffect, useState } from 'react';
-import { useBalance } from '../Context/BalanceContext'; // Import the custom hook
+import { useUser } from '../Context/userContext';
 import * as XLSX from 'xlsx';
-import { io } from 'socket.io-client';
+import { useNavigate } from 'react-router-dom';
 
 export const Dashboard = () => {
-  const [sentTransactions, setSentTransactions] = useState([]);
-  const [receivedTransactions, setReceivedTransactions] = useState([]);
-  const [period, setPeriod] = useState('today'); // Track selected period (today or month)
-  const { balance, updateBalance } = useBalance(); // Access balance and update function
-  const token = localStorage.getItem('token');
-  const socket = io('http://localhost:3001')
+  const { 
+    setUserData, 
+    email, 
+    setTransactionRecipient,
+    user,
+    transactions
+  } = useUser();
+  
+  const [period, setPeriod] = useState('today');
+  const [allTransactions, setAllTransactions] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    // Listen for the 'paymentMade' event and update the state when it occurs
-    socket.on('paymentMade', (data) =>{
-      const newTransaction = {
-        id: Date.now(), // Generate a new ID for the transaction
-        type: 'sent', // Or 'received', depending on how you structure your data
-        amount: data.amount,
-        description: data.description,
-        sender: data.senderName,
-        receiver: data.from, // Depending on the structure of the data sent
-        createdAt: data.time,
-      };
-
-      // If the transaction is sent by the current user, update sentTransactions
-      if (data.userId === token) {
-        setSentTransactions((prevSent) => [newTransaction, ...prevSent]);
-      } else {
-        // Otherwise, update receivedTransactions
-        setReceivedTransactions((prevReceived) => [newTransaction, ...prevReceived]);
-      }
-    });
-
-    // Cleanup socket listener on component unmount
-    return () => {
-      socket.off('paymentMade'); // Remove the listener to prevent memory leaks
-    };
-  }, [token]); // Re-run effect when token changes
-
-  useEffect(() => {
-    fetch('http://localhost:3001/auth/profile/transactions', {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    })
-      .then((response) => response.json())
-      .then((data) => {
-        const { sent, received } = data.transactions || {};
-        setSentTransactions(sent || []);
-        setReceivedTransactions(received || []);
-      })
-      .catch((error) => console.error('Error:', error));
-  }, [token]);
-
-  // Combine both sent and received transactions
-  const transactions = [
-    ...sentTransactions.map((tx) => ({
+  // Format transaction data for display
+  const formatTransactions = (txList) => {
+    return txList.map(tx => ({
       ...tx,
-      type: 'Sent',
-      sender_receiver_name: tx.receiver_name || 'N/A',
-    })),
-    ...receivedTransactions.map((tx) => ({
-      ...tx,
-      type: 'Received',
-      sender_receiver_name: tx.sender_name || 'N/A',
-    })),
-  ];
-
-  const filterTransactions = (period) => {
-    const today = new Date();
-    const filtered = transactions.filter((tx) => {
-      const txDate = new Date(tx.createdAt);
-      if (period === 'today') {
-        return txDate.toDateString() === today.toDateString();
-      } else if (period === 'month') {
-        return txDate.getMonth() === today.getMonth() && txDate.getFullYear() === today.getFullYear();
-      }
-      return true;
-    });
-    return filtered;
+      amount: parseFloat(tx.amount),
+      timestamp: new Date(tx.timeStamp),
+      recipientName: tx.name, // Name of the recipient from transaction
+      isEditable: tx.type === 'Sent' // Only sent transactions can be edited
+    }));
   };
 
+  useEffect(() => {
+    setTransactionRecipient({});
+    if (email) {
+      setIsLoading(true);
+      fetch('http://localhost:3001/getUser', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email }),
+      })
+        .then(res => res.json())
+        .then(data => {
+          console.log(data,'---->useEffect');
+          if (data) {
+            setUserData(data);
+            
+            // Process transactions with format function
+            const formatted = formatTransactions(data.transactions?.list || []);
+            setAllTransactions(formatted);
+          }
+        })
+        .catch(err => console.error('Error fetching user:', err))
+        .finally(() => setIsLoading(false));
+    }
+  }, []);
+
+  // Filter transactions based on selected period
+  const filterTransactions = (period) => {
+    const today = new Date();
+    return allTransactions.filter(tx => {
+      const txDate = tx.timestamp;
+      switch (period) {
+        case 'today':
+          return txDate.toDateString() === today.toDateString();
+        case 'month':
+          return (
+            txDate.getMonth() === today.getMonth() &&
+            txDate.getFullYear() === today.getFullYear()
+          );
+        default:
+          return true;
+      }
+    });
+  };
+
+  // Handle row click for sent transactions
+  const handleRowClick = (transaction) => {
+    console.log(transaction,'handleRow');
+    if (transaction.type === 'Sent') {
+      setTransactionRecipient({
+        id: transaction.receiver_id,
+        name: transaction.recipientName
+      });
+      navigate('/payment');
+    }
+  };
+
+  // Export filtered transactions to Excel
   const handleExport = () => {
-    const filteredTransactions = filterTransactions(period);
-    if (filteredTransactions.length === 0) {
-      alert('No transactions found for the selected period.');
+    const filtered = filterTransactions(period);
+    if (filtered.length === 0) {
+      alert('No transactions for selected period.');
       return;
     }
 
-    const worksheet = XLSX.utils.json_to_sheet(
-      filteredTransactions.map((tx) => ({
-        'Type': tx.type,
-        'Sender/Receiver': tx.type === 'Sent' ? tx.receiver : tx.sender,
-        'Amount': `₹${tx.amount}`,
-        'Description': tx.description,
-        'Date': new Date(tx.createdAt).toLocaleString(),
-      }))
-    );
+    const exportData = filtered.map(tx => ({
+      'Type': tx.type,
+      'Recipient': tx.recipientName,
+      'Amount': `₹${tx.amount.toFixed(2)}`,
+      'Date': tx.timestamp.toLocaleString(),
+      'Transaction ID': tx.id,
+      'Edit Count': tx.edits?.length || 0
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Transactions');
     XLSX.writeFile(workbook, `transactions-${period}.xlsx`);
   };
 
+  if (isLoading) {
+    return <div className="p-6">Loading transactions...</div>;
+  }
+
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
-
-      {/* Period Selection */}
-      <div className="mb-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Transaction History</h1>
+        <div className="text-lg font-semibold">
+          Balance: ₹{(user?.amount || 0).toFixed(2)}
+        </div>
+      </div>
+      
+      <div className="mb-6 flex gap-4">
+        {['today', 'month', 'all'].map(timePeriod => (
+          <button
+            key={timePeriod}
+            onClick={() => setPeriod(timePeriod)}
+            className={`py-2 px-4 rounded-md capitalize ${
+              period === timePeriod 
+                ? `bg-${timePeriod === 'today' ? 'blue' : timePeriod === 'month' ? 'green' : 'purple'}-600` 
+                : `bg-${timePeriod === 'today' ? 'blue' : timePeriod === 'month' ? 'green' : 'purple'}-400`
+            } text-white hover:bg-${timePeriod === 'today' ? 'blue' : timePeriod === 'month' ? 'green' : 'purple'}-700`}
+          >
+            {timePeriod === 'all' ? 'All Transactions' : `This ${timePeriod.charAt(0).toUpperCase() + timePeriod.slice(1)}`}
+          </button>
+        ))}
         <button
-          onClick={() => { setPeriod('today'); handleExport(); }}
-          className={`py-2 px-4 rounded-md ${period === 'today' ? 'bg-blue-600' : 'bg-blue-400'} text-white hover:bg-blue-700`}
+          onClick={handleExport}
+          className="ml-auto py-2 px-4 bg-gray-600 text-white rounded-md hover:bg-gray-700"
         >
-          Today's Transactions
-        </button>
-        <button
-          onClick={() => { setPeriod('month'); handleExport(); }}
-          className={`py-2 px-4 rounded-md ${period === 'month' ? 'bg-green-600' : 'bg-green-400'} text-white hover:bg-green-700 ml-4`}
-        >
-          This Month's Transactions
+          Export to Excel
         </button>
       </div>
 
-      <div>
-        <h2 className="text-xl font-bold mb-2">Transactions</h2>
-        <div className="bg-white rounded shadow overflow-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-gray-100">
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-2 text-left">Type</th>
-                <th className="px-4 py-2 text-left">Sender/Receiver</th>
-                <th className="px-4 py-2 text-left">Amount</th>
-                <th className="px-4 py-2 text-left">Description</th>
-                <th className="px-4 py-2 text-left">Date</th>
+                {['Type', 'Recipient', 'Amount', 'Date', 'Status'].map(header => (
+                  <th 
+                    key={header} 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                  >
+                    {header}
+                  </th>
+                ))}
               </tr>
             </thead>
-            <tbody>
-              {console.log(transactions.length,'---->transaction')
-              }
-              {transactions.length > 0 ? (
-                transactions.map((tx) => (
-                  <tr key={tx.id} className="border-t">
-                    <td className="px-4 py-2">{tx.type}</td>
-                    <td className="px-4 py-2">{tx.type === 'Sent' ? tx.receiver : tx.sender}</td>
-                    <td className="px-4 py-2">PKR{tx.amount}</td>
-                    <td className="px-4 py-2">{tx.description}</td>
-                    <td className="px-4 py-2">{new Date(tx.createdAt).toLocaleString()}</td>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {user?.transactions?.list?.length > 0 ? (
+                user.transactions.list.map((transaction) => (
+                  <tr 
+                    key={transaction.id} 
+                    onClick={() => handleRowClick(transaction)}
+                    className={`${transaction.type === 'Sent' ? 'cursor-pointer hover:bg-gray-50' : ''} transition-colors`}
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                        ${transaction.type === 'Sent' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                        {transaction.type || 'Transaction'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {transaction.name || transaction.recipientName || 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      ₹{Number(transaction.amount).toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {transaction.timeStamp ? 
+                        new Date(transaction.timeStamp).toLocaleDateString('en-IN', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        }) : 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {transaction.edits?.length > 0 ? (
+                        <div className="space-y-1">
+                          {transaction.edits.map((edit, index) => (
+                            <div key={index} className="flex items-center text-xs">
+                              <span className="font-medium mr-1">Edit {index + 1}:</span>
+                              <span className="text-gray-600 mr-2">₹{Number(edit.amount).toFixed(2)}</span>
+                              <span className="text-gray-400">
+                                {edit.timeStamp ? new Date(edit.timeStamp).toLocaleTimeString() : 'N/A'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 italic">No edits</span>
+                      )}
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="5" className="px-4 py-2 text-center">No transactions available</td>
+                  <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500">
+                    No transactions found
+                  </td>
                 </tr>
               )}
             </tbody>

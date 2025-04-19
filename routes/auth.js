@@ -105,6 +105,7 @@ router.post("/transactions", verifyToken, async (req, res) => {
     const senderId = req.userId;
   
     try {
+      // Validation
       if (!to_user_id || !amount || isNaN(amount) || amount <= 0) {
         return res.status(400).json({ message: "Invalid transaction data" });
       }
@@ -113,13 +114,10 @@ router.post("/transactions", verifyToken, async (req, res) => {
         return res.status(400).json({ message: "You cannot send money to yourself" });
       }
   
+      // Fetch sender and receiver details
       const [sender, receiver] = await Promise.all([
-        User.findByPk(senderId, {
-          attributes: ["id", "name", "email", "amount"],
-        }),
-        User.findByPk(to_user_id, {
-          attributes: ["id", "name", "email", "amount"],
-        }),
+        User.findByPk(senderId, { attributes: ["id", "name", "email", "amount"] }),
+        User.findByPk(to_user_id, { attributes: ["id", "name", "email", "amount"] }),
       ]);
   
       if (!receiver) {
@@ -135,56 +133,67 @@ router.post("/transactions", verifyToken, async (req, res) => {
         });
       }
   
-      // Format the current time for the transaction
-      const transactionTime = new Date().toLocaleString(); // Get current time as string
-  
-      // Emit socket event after successful transaction
+      const transactionTime = new Date().toLocaleString();
       const io = req.app.get('io');
-      // Update sender's and receiver's balance
-await sender.update({ amount: sender.amount - parsedAmount });
-await receiver.update({ amount: receiver.amount + parsedAmount });
-
-// Emit socket event for balance update
-if (io) {
-  io.emit("balanceUpdated", {
-    userId: senderId,
-    newBalance: sender.amount - parsedAmount
-  });
-}
-
-// Emit the paymentMade event as well
-if (io) {
-    // First get the receiver's details from database
-    const receiver = await User.findByPk(to_user_id, {
-      attributes: ['id', 'name']
-    });
   
-    // Emit the paymentMade event with complete information
-    io.emit("paymentMade", {
-      senderId: senderId,
-      senderName: sender.name,
-      receiverId: to_user_id,  // Add receiver ID
-      receiverName: receiver.name,  // Add receiver name
-      amount: parsedAmount,
-      description,
-      time: transactionTime
-    });
-
-    io.to(to_user_id.toString()).emit('paymentMade', {
-        senderId,
-        senderName: sender.name,
-        receiverId: to_user_id,
-        receiverName: receiver.name,
-        amount: parsedAmount,
-        type: 'received' // Helps frontend distinguish
-      });
-  }
-
+      // Update balances
+      await sender.update({ amount: sender.amount - parsedAmount });
+      await receiver.update({ amount: receiver.amount + parsedAmount });
+  
+      // Create transaction records
+      await Promise.all([
+        Transaction.create({
+          senderId: senderId,
+          receiverId: to_user_id,
+          type: 'send',
+          amount: parsedAmount,
+          description
+        }),
+        Transaction.create({
+          senderId: senderId,
+          receiverId: to_user_id,
+          type: 'receive',
+          amount: parsedAmount,
+          description
+        })
+      ]);
+  
+      // Emit balance update for sender
+      if (io) {
+        io.emit("balanceUpdated", {
+          userId: senderId,
+          newBalance: sender.amount - parsedAmount,
+        });
+      }
+  
+      // Emit paymentMade event
+      if (io) {
+        io.emit("paymentMade", {
+          senderId,
+          senderName: sender.name,
+          receiverId: to_user_id,
+          receiverName: receiver.name,
+          amount: parsedAmount,
+          description,
+          time: transactionTime
+        });
+  
+        // Optional: notify specific receiver
+        io.to(to_user_id.toString()).emit("paymentMade", {
+          senderId,
+          senderName: sender.name,
+          receiverId: to_user_id,
+          receiverName: receiver.name,
+          amount: parsedAmount,
+          type: "received",
+        });
+      }
   
       return res.status(201).json({
         success: true,
         message: "Transaction completed successfully",
       });
+  
     } catch (error) {
       console.error("Transaction error:", error);
       if (error.name === "SequelizeDatabaseError") {
@@ -193,6 +202,7 @@ if (io) {
           message: "Service temporarily unavailable",
         });
       }
+  
       return res.status(500).json({
         success: false,
         message: "Internal server error",

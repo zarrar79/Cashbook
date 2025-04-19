@@ -1,8 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Home, FileText, LogOut, Bell } from 'lucide-react';
-import { useBalance } from '../Context/BalanceContext';
-import { io } from 'socket.io-client';
+import { useUser } from '../Context/userContext'; // Import the context hook
 
 const tabs = [
   { name: 'Dashboard', path: '/dashboard', icon: <Home size={18} /> },
@@ -10,25 +9,19 @@ const tabs = [
 ];
 
 const SidebarLayout = () => {
-  const { balance, updateBalance, setLastTransactionMessage, user, lastTransactionMessage } = useBalance();
   const location = useLocation();
-  const [showToast, setShowToast] = useState(false);
   const navigate = useNavigate();
+
+  const [showToast, setShowToast] = useState(false);
+  const [lastTransactionMessage, setLastTransactionMessage] = useState('');
   const [isNotifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
 
-  useEffect(() => {
-    if (lastTransactionMessage) {
-      setShowToast(true);
-      const timer = setTimeout(() => setShowToast(false), 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [lastTransactionMessage]);
+  // Access user data from the context
+  const { user, amount } = useUser();  // Get user name and amount from context
 
   const handleLogout = () => {
     localStorage.removeItem('token');
-    localStorage.removeItem('balance');
-    localStorage.removeItem('userData');
     navigate('/');
   };
 
@@ -36,11 +29,11 @@ const SidebarLayout = () => {
     <div className="flex min-h-screen bg-gray-100">
       {/* Sidebar */}
       <aside className="w-64 bg-white shadow-md p-4">
-        <h1 className="text-2xl font-bold mb-2">Welcome</h1>
+        <h1 className="text-2xl font-bold mb-2">Welcome {user ? user.name : 'Guest'}</h1>
 
         {/* Balance Display */}
         <div className="text-gray-800 font-medium mb-4">
-          Balance: <span className="text-green-600">PKR {balance ? balance.toFixed(2) : '0.00'}</span>
+          Balance: <span className="text-green-600">PKR {amount.toFixed(2)}</span>
         </div>
 
         {/* Navigation Tabs */}
