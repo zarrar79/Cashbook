@@ -117,7 +117,7 @@ export const Dashboard = () => {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Transaction History</h1>
         <div className="text-lg font-semibold">
-          Balance: ₹{(user?.amount || 0).toFixed(2)}
+          Balance: PKR{(user?.amount || 0).toFixed(2)}
         </div>
       </div>
       
@@ -176,7 +176,7 @@ export const Dashboard = () => {
                       {transaction.name || transaction.recipientName || 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      ₹{Number(transaction.amount).toFixed(2)}
+                    PKR{Number(transaction.amount).toFixed(2)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {transaction.timeStamp ? 
@@ -196,7 +196,7 @@ export const Dashboard = () => {
                           {transaction.edits.map((edit, index) => (
                             <div key={index} className="flex items-center text-xs">
                               <span className="font-medium mr-1">Edit {index + 1}:</span>
-                              <span className="text-gray-600 mr-2">₹{Number(edit.newAmount).toFixed(2)}</span>
+                              <span className="text-gray-600 mr-2">PKR{Number(edit.newAmount).toFixed(2)}</span>
                               <span className="text-gray-400">
                                 {edit.timeStamp ? new Date(edit.timeStamp).toLocaleTimeString() : 'N/A'}
                                 {console.log(edit,'----->amount')

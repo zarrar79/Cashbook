@@ -40,7 +40,8 @@ rootConnection.connect(err => {
           email VARCHAR(255) UNIQUE,
           password VARCHAR(255),
           transactions JSON,
-          amount DECIMAL(10, 2) DEFAULT 0
+          amount DECIMAL(10, 2) DEFAULT 0,
+          transaction_count INT DEFAULT 0
         )
       `;
 
@@ -314,9 +315,12 @@ app.post('/transactions', (req, res) => {
         amountChange = amountDifference;
       } else {
         // NEW TRANSACTION
+
+
         if (senderData.amount < amount) {
           throw new Error('Insufficient balance');
         }
+
 
         actualTransactionId = `txn_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 
@@ -355,7 +359,7 @@ app.post('/transactions', (req, res) => {
         new Promise((resolve, reject) => {
           db.query(
             'UPDATE users SET amount = amount - ? WHERE id = ?',
-            [amountChange, sender_id],
+            [amount, sender_id],
             (err) => err ? reject(err) : resolve()
           );
         }),
@@ -363,7 +367,7 @@ app.post('/transactions', (req, res) => {
         new Promise((resolve, reject) => {
           db.query(
             'UPDATE users SET amount = amount + ? WHERE id = ?',
-            [amountChange, to_user_id],
+            [amount, to_user_id],
             (err) => err ? reject(err) : resolve()
           );
         }),
