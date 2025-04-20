@@ -108,7 +108,7 @@ app.post('/signin', (req, res) => {
 });
 
 // Add amount endpoint
-app.post('/addAmount', (req, res) => {
+app.post('/addFunds', (req, res) => {
   const { email, amount } = req.body;
 
   if (!email || isNaN(amount)) {

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Home, FileText, LogOut, Bell } from 'lucide-react';
-import { useUser } from '../Context/userContext'; // Import the context hook
+import { Home, FileText, LogOut, Bell, Plus, X } from 'lucide-react';
+import { useUser } from '../Context/userContext';
 
 const tabs = [
   { name: 'Dashboard', path: '/dashboard', icon: <Home size={18} /> },
@@ -11,18 +11,66 @@ const tabs = [
 const SidebarLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, amount, setUserData } = useUser();
 
   const [showToast, setShowToast] = useState(false);
   const [lastTransactionMessage, setLastTransactionMessage] = useState('');
   const [isNotifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
-
-  // Access user data from the context
-  const { user, amount } = useUser();  // Get user name and amount from context
+  const [showAddFundsPopup, setShowAddFundsPopup] = useState(false);
+  const [fundsAmount, setFundsAmount] = useState();
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     navigate('/');
+  };
+
+  const handleAddFunds = async () => {
+    if (!fundsAmount || isNaN(fundsAmount) || parseFloat(fundsAmount) <= 0) {
+      setLastTransactionMessage('Please enter a valid amount');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+      return;
+    }
+  
+    setIsLoading(true);
+    try {
+    //   const token = localStorage.getItem('token');
+    //   if (!token) {
+    //     throw new Error('Not authenticated');
+    //   }
+  
+      const response = await fetch('http://localhost:3001/addFunds', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        //   'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          email: user.email,
+          amount: parseFloat(fundsAmount)
+        })
+      });
+  
+      const data = await response.json();
+      console.log('Add funds response:', data); // Add this line
+  
+      if (!response.ok){
+        throw new Error(data.message || 'Failed to add funds');
+      }
+      setLastTransactionMessage(`Successfully added PKR ${parseFloat(fundsAmount).toFixed(2)}`);
+      setShowToast(true);
+      setShowAddFundsPopup(false);
+      setFundsAmount('');
+    } catch (error) {
+      console.error('Add funds error:', error); // Add this line
+      setLastTransactionMessage(error.message);
+      setShowToast(true);
+    } finally {
+      setIsLoading(false);
+      setTimeout(() => setShowToast(false), 3000);
+    }
   };
 
   return (
@@ -31,10 +79,62 @@ const SidebarLayout = () => {
       <aside className="w-64 bg-white shadow-md p-4">
         <h1 className="text-2xl font-bold mb-2">Welcome {user ? user.name : 'Guest'}</h1>
 
-        {/* Balance Display */}
-        <div className="text-gray-800 font-medium mb-4">
-          Balance: <span className="text-green-600">PKR {amount.toFixed(2)}</span>
+        {/* Balance Display with Add Funds Button */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="text-gray-800 font-medium">
+            Balance: <span className="text-green-600">PKR {amount.toFixed(2)}</span>
+          </div>
+          <button
+            onClick={() => setShowAddFundsPopup(true)}
+            className="p-1.5 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors"
+            title="Add Funds"
+          >
+            <Plus size={16} />
+          </button>
         </div>
+
+        {/* Add Funds Popup */}
+        {showAddFundsPopup && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg shadow-xl w-80">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">Add Funds</h3>
+                <button 
+                  onClick={() => {
+                    setShowAddFundsPopup(false);
+                    setFundsAmount('');
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Amount to Add (PKR)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={fundsAmount}
+                  onChange={(e) => setFundsAmount(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter amount"
+                />
+              </div>
+              
+              <button
+                onClick={handleAddFunds}
+                disabled={isLoading}
+                className={`w-full py-2 px-4 rounded-md text-white ${isLoading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'} transition-colors`}
+              >
+                {isLoading ? 'Processing...' : 'Add Funds'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Navigation Tabs */}
         <nav className="space-y-2">
@@ -105,7 +205,7 @@ const SidebarLayout = () => {
         </div>
 
         {/* Toast Notification */}
-        {showToast && lastTransactionMessage && (
+        {showToast && (
           <div className="fixed top-6 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded shadow-lg z-50">
             {lastTransactionMessage}
           </div>

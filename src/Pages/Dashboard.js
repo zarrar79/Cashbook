@@ -212,8 +212,19 @@ export const Dashboard = () => {
                     {new Date(tx.timeStamp).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-500">
-                    {tx.edits?.length || 0} edits
-                  </td>
+  {tx.edits?.length ? (
+    <div className="space-y-1">
+      <div>{tx.edits.length} edits</div>
+      {tx.edits.map((edit, index) => (
+        <div key={index} className="text-xs text-gray-400">
+          #{index + 1}: {edit.newAmount} at {new Date(edit.timeStamp).toLocaleString()}
+        </div>
+      ))}
+    </div>
+  ) : (
+    0
+  )}
+</td>
                 </tr>
               ))
             ) : (
