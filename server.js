@@ -140,9 +140,7 @@ app.post('/getUser', (req, res) => {
     return res.status(400).json({ error: 'Email is required' });
   }
 
-  const getUserQuery = `
-    SELECT * FROM users WHERE email = ?
-  `;
+  const getUserQuery = `SELECT * FROM users WHERE email = ?`;
 
   db.query(getUserQuery, [email], (err, result) => {
     if (err) {
@@ -154,21 +152,74 @@ app.post('/getUser', (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    
     const user = result[0];
-
-    console.log(user,'----->result');
-    console.log(user.transactions);
-    console.log((typeof user.transactions === 'string'));
     
+    // Initialize transactions if not present
     if (user.transactions && typeof user.transactions === 'string') {
       user.transactions = JSON.parse(user.transactions);
     } else if (!user.transactions) {
       user.transactions = { list: [] };
     }
 
+    // Ensure transactions.list exists
+    if (!user.transactions.list) {
+      user.transactions.list = [];
+    }
 
-    res.status(200).json(user);
+    // Initialize counts if not present
+    user.transaction_count = user.transaction_count || 0;
+
+    // Track new transactions
+    let newTransactions = [];
+    if (user.transaction_count < user.transactions.list.length) {
+      const difference = user.transactions.list.length - user.transaction_count;
+      const sorted = [...user.transactions.list].sort((a, b) => 
+        new Date(b.timeStamp) - new Date(a.timeStamp)
+      );
+      newTransactions = sorted.slice(0, difference);
+    }
+
+    // Track edit changes
+    let editNotifications = [];
+    user.transactions.list.forEach(tx => {
+      tx.editCount = tx.editCount || 0;
+      const editsLength = tx.edits?.length || 0;
+
+      if (tx.editCount < editsLength) {
+        const difference = editsLength - tx.editCount;
+        const sortedEdits = [...tx.edits].sort((a, b) => 
+          new Date(b.timeStamp) - new Date(a.timeStamp)
+        );
+        editNotifications.push(...sortedEdits.slice(0, difference).map(edit => ({
+          ...tx,
+          editData: edit
+        })));
+        tx.editCount = editsLength; // Update count
+      }
+    });
+
+    // Update database if changes found
+    if (newTransactions.length > 0 || editNotifications.length > 0) {
+      const updateQuery = `UPDATE users SET transactions = ?, transaction_count = ? WHERE email = ?`;
+      db.query(updateQuery, [
+        JSON.stringify(user.transactions),
+        user.transactions.list.length,
+        email
+      ], (updateErr) => {
+        if (updateErr) {
+          console.error('Error updating user:', updateErr);
+        }
+        return res.status(200).json({
+          ...user,
+          notifications: {
+            newTransactions,
+            editNotifications
+          }
+        });
+      });
+    } else {
+      return res.status(200).json(user);
+    }
   });
 });
 
