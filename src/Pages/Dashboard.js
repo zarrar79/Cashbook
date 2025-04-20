@@ -156,25 +156,30 @@ export const Dashboard = () => {
         </div>
       </div>
 
-      <div className="mb-6 flex gap-4">
-        {['today', 'month', 'all'].map(timePeriod => (
-          <button
-            key={timePeriod}
-            onClick={() => setPeriod(timePeriod)}
-            className={`py-2 px-4 rounded-md capitalize ${
-              period === timePeriod ? 'bg-blue-600' : 'bg-blue-400'
-            } text-white hover:bg-blue-700`}
-          >
-            {timePeriod === 'all' ? 'All Transactions' : `This ${timePeriod}`}
-          </button>
-        ))}
-        <button
-          onClick={handleExport}
-          className="ml-auto py-2 px-4 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-        >
-          Export to Excel
-        </button>
-      </div>
+      <div className="mb-6 flex gap-4 items-center">
+  <div className="relative">
+    <select
+      value={period}
+      onChange={(e) => setPeriod(e.target.value)}
+      className="block appearance-none bg-white border border-gray-300 text-gray-700 py-2 px-4 pr-8 rounded-md leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+    >
+      <option value="today">Today</option>
+      <option value="month">This Month</option>
+      <option value="all">All Transactions</option>
+    </select>
+    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+      <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+        <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+      </svg>
+    </div>
+  </div>
+  <button
+    onClick={handleExport}
+    className="ml-auto py-2 px-4 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+  >
+    Export to Excel
+  </button>
+</div>
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
